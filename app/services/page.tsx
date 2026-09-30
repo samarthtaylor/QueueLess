@@ -1,15 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Award, BadgeCheck, FileCheck2, Home, IdCard, Menu, Search, Sparkles, X, Zap } from 'lucide-react'
+import { ArrowRight, Menu, Search, X, Zap } from 'lucide-react'
+import { services as serviceRecords } from '@/lib/queue-data'
 
-const services = [
-  { id: 'document-verification', name: 'Document Verification', category: 'Documents', icon: FileCheck2, description: 'Verify and submit documents for government services.', time: '~15 min', status: 'Medium' },
-  { id: 'certificate-application', name: 'Certificate Application', category: 'Certificates', icon: Award, description: 'Submit and process applications for eligible certificates.', time: '~20 min', status: 'Low' },
-  { id: 'address-update', name: 'Address Update', category: 'Applications', icon: Home, description: 'Request an update to your registered address information.', time: '~10 min', status: 'Low' },
-  { id: 'id-services', name: 'ID Services', category: 'Identity', icon: IdCard, description: 'Access available identity-related government services.', time: '~25 min', status: 'High' },
-  { id: 'application-submission', name: 'Application Submission', category: 'Applications', icon: BadgeCheck, description: 'Submit applications and supporting documents.', time: '~15 min', status: 'Medium' },
-]
+const services = serviceRecords.map((service) => ({
+  id: service.service_id,
+  name: service.service_name,
+  category: service.category,
+  icon: service.icon,
+  description: service.description,
+  time: `~${service.average_service_time} min`,
+  status: service.service_id === 'document-verification' || service.service_id === 'application-submission' ? 'Medium' : service.service_id === 'id-services' ? 'High' : 'Low',
+}))
 const categories = ['All Services', ...Array.from(new Set(services.map((service) => service.category)))]
 
 function Logo() { return <a className="brand" href="/" aria-label="QueueLess home"><span className="brand-mark"><Zap size={16} fill="currentColor" /></span><span>Queue<span className="brand-accent">Less</span></span></a> }
