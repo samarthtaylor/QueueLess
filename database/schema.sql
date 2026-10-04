@@ -1,5 +1,6 @@
 PRAGMA foreign_keys = ON;
 
+-- Canonical runtime schema is initialized by lib/db.ts for the local SQLite application.
 CREATE TABLE IF NOT EXISTS users (
   user_id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
