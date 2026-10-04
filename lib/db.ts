@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS predictions (id INTEGER PRIMARY KEY AUTOINCREMENT, se
 CREATE INDEX IF NOT EXISTS idx_queue_service_status ON queue(service_id, status);
 `)
 
+try { db.exec("ALTER TABLE queue ADD COLUMN served_at TEXT") } catch {}
+db.exec('CREATE INDEX IF NOT EXISTS idx_queue_counter_status ON queue(counter_id, status)')
+
 const serviceCount = db.prepare('SELECT COUNT(*) as count FROM services').get() as { count: number }
 if (serviceCount.count === 0) {
   const insert = db.prepare('INSERT INTO services (service_id, service_name, description, category, average_service_time) VALUES (?, ?, ?, ?, ?)')
