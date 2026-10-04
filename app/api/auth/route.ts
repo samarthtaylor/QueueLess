@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
   }
   const user = db.prepare('SELECT id, name, email, password_hash, role FROM users WHERE email = ?').get(input.email) as { id: number; name: string; email: string; password_hash: string; role: 'CITIZEN' | 'ADMIN' | 'STAFF' } | undefined
   if (!user || !(await verifyPassword(input.password, user.password_hash))) return NextResponse.json({ error: 'Email or password is incorrect.' }, { status: 401 })
+  if (action === 'admin-login' && user.role === 'CITIZEN') return NextResponse.json({ error: 'This portal is restricted to authorized staff.' }, { status: 403 })
   const response = NextResponse.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } }); response.cookies.set('queueless_session', createSession(user.id, user.role), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7, path: '/' }); return response
 }
 export async function DELETE() { const response = NextResponse.json({ ok: true }); response.cookies.delete('queueless_session'); return response }
