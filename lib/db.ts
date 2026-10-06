@@ -16,7 +16,7 @@ db.pragma('journal_mode = WAL')
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'CITIZEN' CHECK (role IN ('CITIZEN','ADMIN','STAFF')), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, service_id TEXT NOT NULL UNIQUE, service_name TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, average_service_time INTEGER NOT NULL CHECK (average_service_time > 0), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, service_id TEXT NOT NULL UNIQUE, service_name TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, department TEXT NOT NULL DEFAULT 'Citizen Services', required_documents TEXT NOT NULL DEFAULT '[]', keywords TEXT NOT NULL DEFAULT '', average_service_time INTEGER NOT NULL CHECK (average_service_time > 0), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS counters (id INTEGER PRIMARY KEY AUTOINCREMENT, counter_number TEXT NOT NULL, service_id TEXT NOT NULL REFERENCES services(service_id), staff_user_id INTEGER REFERENCES users(id), status TEXT NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE','BUSY','OFFLINE')), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(counter_number, service_id));
 CREATE TABLE IF NOT EXISTS queue (id INTEGER PRIMARY KEY AUTOINCREMENT, service_id TEXT NOT NULL REFERENCES services(service_id), user_id INTEGER REFERENCES users(id), token_number TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'WAITING' CHECK (status IN ('WAITING','CALLED','SERVING','COMPLETED','CANCELLED','NO_SHOW')), position INTEGER NOT NULL, joined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, called_at TEXT, completed_at TEXT, counter_id INTEGER REFERENCES counters(id), estimated_wait_time INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(service_id, token_number));
 CREATE TABLE IF NOT EXISTS queue_history (id INTEGER PRIMARY KEY AUTOINCREMENT, queue_id INTEGER REFERENCES queue(id), service_id TEXT NOT NULL REFERENCES services(service_id), user_id INTEGER REFERENCES users(id), token_number TEXT NOT NULL, counter_id INTEGER REFERENCES counters(id), wait_time INTEGER NOT NULL DEFAULT 0, service_time INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, joined_at TEXT NOT NULL, served_at TEXT, completed_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
@@ -27,6 +27,47 @@ CREATE INDEX IF NOT EXISTS idx_queue_service_status ON queue(service_id, status)
 
 try { db.exec("ALTER TABLE queue ADD COLUMN served_at TEXT") } catch {}
 db.exec('CREATE INDEX IF NOT EXISTS idx_queue_counter_status ON queue(counter_id, status)')
+
+try { db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1") } catch {}
+for (const statement of [
+  "ALTER TABLE services ADD COLUMN department TEXT NOT NULL DEFAULT 'Citizen Services'",
+  "ALTER TABLE services ADD COLUMN required_documents TEXT NOT NULL DEFAULT '[]'",
+  "ALTER TABLE services ADD COLUMN keywords TEXT NOT NULL DEFAULT ''",
+]) { try { db.exec(statement) } catch {} }
+
+const catalogue = [
+  ['aadhaar-services', 'Aadhaar-related Services', 'Identity and Aadhaar enrolment, updates, and support.', 'Identity & Citizen Documents', 'UIDAI Citizen Services', 20, 'Aadhaar card, identity proof, address proof', 'aadhaar identity uidai'],
+  ['pan-services', 'PAN-related Services', 'Apply for or update your Permanent Account Number details.', 'Identity & Citizen Documents', 'Income Tax Department', 20, 'Identity proof, address proof, photograph', 'pan tax card'],
+  ['birth-certificate', 'Birth Certificate', 'Apply for a new birth certificate or request a certified copy.', 'Identity & Citizen Documents', 'Municipal Corporation', 25, 'Hospital record, parent identity proof, address proof', 'birth registration certificate'],
+  ['death-certificate', 'Death Certificate', 'Request an official death certificate for a registered death.', 'Identity & Citizen Documents', 'Municipal Corporation', 25, 'Medical certificate, deceased identity proof, applicant identity proof', 'death registration certificate'],
+  ['domicile-certificate', 'Domicile Certificate', 'Apply for proof of residence in the state or district.', 'Identity & Citizen Documents', 'Revenue Department', 25, 'Identity proof, address proof, residence evidence', 'domicile residence'],
+  ['caste-certificate', 'Caste Certificate', 'Apply for an official caste or community certificate.', 'Identity & Citizen Documents', 'Revenue Department', 30, 'Identity proof, address proof, supporting caste record', 'caste community certificate'],
+  ['income-certificate', 'Income Certificate', 'Obtain an official certificate of annual family income.', 'Identity & Citizen Documents', 'Revenue Department', 25, 'Identity proof, address proof, income declaration', 'income certificate earnings'],
+  ['ews-certificate', 'EWS Certificate', 'Apply for an Economically Weaker Section certificate.', 'Identity & Citizen Documents', 'Revenue Department', 30, 'Identity proof, income proof, property declaration', 'ews economic weaker section'],
+  ['residence-certificate', 'Residence Certificate', 'Request proof of current residential address.', 'Identity & Citizen Documents', 'Revenue Department', 20, 'Identity proof, address proof, application form', 'residence address'],
+  ['driving-licence', 'Driving Licence', 'Apply for a new permanent driving licence.', 'Transport', 'Regional Transport Office', 35, 'Learner licence, age proof, address proof', 'driving license transport rto'],
+  ['learners-licence', "Learner's Licence", 'Apply for a learner driving licence and test appointment.', 'Transport', 'Regional Transport Office', 30, 'Age proof, address proof, photograph', 'learner licence driving test'],
+  ['driving-licence-renewal', 'Driving Licence Renewal', 'Renew an existing driving licence before or after expiry.', 'Transport', 'Regional Transport Office', 25, 'Existing licence, identity proof, medical certificate where applicable', 'renew driving license'],
+  ['vehicle-registration', 'Vehicle Registration', 'Register a new vehicle and receive registration services.', 'Transport', 'Regional Transport Office', 40, 'Sale invoice, insurance, identity proof, address proof', 'vehicle rc registration'],
+  ['vehicle-transfer', 'Vehicle Transfer', 'Transfer vehicle ownership to a new registered owner.', 'Transport', 'Regional Transport Office', 35, 'Registration certificate, sale agreement, insurance', 'vehicle ownership transfer'],
+  ['land-records', 'Land Records', 'Access and request certified land record extracts.', 'Revenue & Land', 'Land Records Department', 25, 'Identity proof, property details, application form', 'land property records'],
+  ['property-tax', 'Property Tax', 'Pay or update municipal property tax records.', 'Municipal Services', 'Municipal Corporation', 20, 'Property ID, identity proof, previous receipt', 'property tax municipal'],
+  ['water-connection', 'Water Connection', 'Apply for a new municipal water connection.', 'Municipal Services', 'Water Supply Department', 35, 'Ownership proof, identity proof, address proof', 'water connection supply'],
+  ['building-permission', 'Building Permission', 'Submit a building plan and request construction permission.', 'Municipal Services', 'Town Planning Department', 45, 'Site plan, ownership proof, building drawings', 'building construction permission'],
+  ['pension-services', 'Pension Services', 'Apply for and manage eligible social security pensions.', 'Social Welfare', 'Social Welfare Department', 30, 'Identity proof, bank details, age or eligibility proof', 'pension senior citizen welfare'],
+  ['scholarship-services', 'Scholarship Services', 'Submit an application for eligible government scholarships.', 'Social Welfare', 'Education Welfare Department', 30, 'Student ID, income certificate, bank details', 'scholarship education student'],
+  ['senior-citizen-services', 'Senior Citizen Services', 'Access services and support available for senior citizens.', 'Social Welfare', 'Social Welfare Department', 20, 'Identity proof, age proof, address proof', 'senior citizen welfare'],
+  ['employment-registration', 'Employment Registration', 'Register as a job seeker with the employment exchange.', 'Employment & Business', 'Employment Department', 20, 'Identity proof, qualification certificates, address proof', 'employment job registration'],
+  ['trade-licence', 'Trade Licence', 'Apply for a municipal licence to operate a trade or business.', 'Employment & Business', 'Municipal Corporation', 35, 'Identity proof, premises proof, business details', 'trade business licence'],
+  ['shop-establishment-registration', 'Shop & Establishment Registration', 'Register a shop or commercial establishment.', 'Employment & Business', 'Labour Department', 40, 'Identity proof, premises proof, business constitution', 'shop establishment labour business'],
+  ['character-certificate', 'Character Certificate', 'Request a character and antecedent verification certificate.', 'Certificates & General Services', 'Citizen Services Department', 25, 'Identity proof, address proof, purpose declaration', 'character police verification'],
+  ['legal-heir-certificate', 'Legal Heir Certificate', 'Apply for a certificate identifying legal heirs.', 'Certificates & General Services', 'Revenue Department', 35, 'Death certificate, family records, identity proof', 'legal heir succession'],
+  ['solvency-certificate', 'Solvency Certificate', 'Request a certificate confirming financial solvency.', 'Certificates & General Services', 'Revenue Department', 30, 'Identity proof, asset records, income proof', 'solvency finance certificate'],
+  ['document-verification', 'Document Verification', 'Verify and submit documents for government services.', 'Certificates & General Services', 'Citizen Services Department', 15, 'Original document, identity proof, application reference', 'document verification'],
+  ['application-status', 'Application Status', 'Check the latest status of an existing application.', 'Certificates & General Services', 'Citizen Services Department', 10, 'Application reference number, identity proof', 'application status tracking'],
+]
+const upsertService = db.prepare(`INSERT INTO services (service_id, service_name, description, category, department, required_documents, keywords, average_service_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(service_id) DO UPDATE SET service_name=excluded.service_name, description=excluded.description, category=excluded.category, department=excluded.department, required_documents=excluded.required_documents, keywords=excluded.keywords, average_service_time=excluded.average_service_time, updated_at=CURRENT_TIMESTAMP`)
+for (const service of catalogue) upsertService.run(service[0], service[1], service[2], service[3], service[4], JSON.stringify(String(service[6]).split(', ')), service[7], service[5])
 
 const serviceCount = db.prepare('SELECT COUNT(*) as count FROM services').get() as { count: number }
 if (serviceCount.count === 0) {
@@ -46,9 +87,10 @@ if (serviceCount.count === 0) {
   }
 }
 
-export type ServiceRow = { service_id: string; service_name: string; description: string; category: string; average_service_time: number }
-export function listServices() { return db.prepare('SELECT service_id, service_name, description, category, average_service_time FROM services WHERE is_active = 1 ORDER BY service_name').all() as ServiceRow[] }
-export function findService(serviceId: string) { return db.prepare('SELECT service_id, service_name, description, category, average_service_time FROM services WHERE service_id = ? AND is_active = 1').get(serviceId) as ServiceRow | undefined }
+export type ServiceRow = { service_id: string; service_name: string; description: string; category: string; department: string; required_documents: string; keywords: string; average_service_time: number; is_active?: number }
+const serviceColumns = 'service_id, service_name, description, category, department, required_documents, keywords, average_service_time, is_active'
+export function listServices() { return db.prepare(`SELECT ${serviceColumns} FROM services WHERE is_active = 1 ORDER BY service_name`).all() as ServiceRow[] }
+export function findService(serviceId: string) { return db.prepare(`SELECT ${serviceColumns} FROM services WHERE service_id = ? AND is_active = 1`).get(serviceId) as ServiceRow | undefined }
 export function getQueueSnapshot(serviceId: string) {
   const service = findService(serviceId)
   if (!service) return null
