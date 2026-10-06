@@ -22,7 +22,13 @@ CREATE TABLE IF NOT EXISTS queue (id INTEGER PRIMARY KEY AUTOINCREMENT, service_
 CREATE TABLE IF NOT EXISTS queue_history (id INTEGER PRIMARY KEY AUTOINCREMENT, queue_id INTEGER REFERENCES queue(id), service_id TEXT NOT NULL REFERENCES services(service_id), user_id INTEGER REFERENCES users(id), token_number TEXT NOT NULL, counter_id INTEGER REFERENCES counters(id), wait_time INTEGER NOT NULL DEFAULT 0, service_time INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, joined_at TEXT NOT NULL, served_at TEXT, completed_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS predictions (id INTEGER PRIMARY KEY AUTOINCREMENT, service_id TEXT NOT NULL REFERENCES services(service_id), predicted_wait_time INTEGER NOT NULL, min_wait_time INTEGER NOT NULL, max_wait_time INTEGER NOT NULL, confidence REAL NOT NULL, prediction_source TEXT NOT NULL CHECK (prediction_source IN ('DEMO','RULE_BASED','ML_MODEL')), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id), action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX IF NOT EXISTS idx_services_active_category ON services(is_active, category, service_name);
+CREATE INDEX IF NOT EXISTS idx_services_service_id_active ON services(service_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_queue_service_status ON queue(service_id, status);
+CREATE INDEX IF NOT EXISTS idx_queue_user_status ON queue(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_queue_service_created ON queue(service_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_predictions_service_created ON predictions(service_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_counters_service_status ON counters(service_id, status);
 `)
 
 try { db.exec("ALTER TABLE queue ADD COLUMN served_at TEXT") } catch {}
@@ -89,12 +95,14 @@ if (serviceCount.count === 0) {
 
 export type ServiceRow = { service_id: string; service_name: string; description: string; category: string; department: string; required_documents: string; keywords: string; average_service_time: number; is_active?: number }
 const serviceColumns = 'service_id, service_name, description, category, department, required_documents, keywords, average_service_time, is_active'
+export type ServiceMenuRow = Pick<ServiceRow, 'service_id' | 'service_name' | 'category' | 'description' | 'department'>
 export function listServices() { return db.prepare(`SELECT ${serviceColumns} FROM services WHERE is_active = 1 ORDER BY service_name`).all() as ServiceRow[] }
+export function listServiceMenu() { return db.prepare(`SELECT service_id, service_name, CASE category WHEN 'Identity & Citizen Documents' THEN 'Identity & Certificates' WHEN 'Documents' THEN 'Identity & Certificates' WHEN 'Certificates' THEN 'Identity & Certificates' WHEN 'Identity' THEN 'Identity & Certificates' WHEN 'Applications' THEN 'Other Citizen Services' ELSE category END AS category, description, department FROM services WHERE is_active = 1 ORDER BY category, service_name`).all() as ServiceMenuRow[] }
 export function findService(serviceId: string) { return db.prepare(`SELECT ${serviceColumns} FROM services WHERE service_id = ? AND is_active = 1`).get(serviceId) as ServiceRow | undefined }
 export function getQueueSnapshot(serviceId: string) {
   const service = findService(serviceId)
   if (!service) return null
-  const waiting = db.prepare("SELECT * FROM queue WHERE service_id = ? AND status IN ('WAITING','CALLED','SERVING') ORDER BY position, id").all(serviceId) as Array<Record<string, unknown>>
+  const waiting = db.prepare("SELECT token_number, status, position FROM queue WHERE service_id = ? AND status IN ('WAITING','CALLED','SERVING') ORDER BY position, id").all(serviceId) as Array<Record<string, unknown>>
   const counters = db.prepare('SELECT counter_number, status FROM counters WHERE service_id = ? ORDER BY counter_number').all(serviceId) as Array<{ counter_number: string; status: string }>
   const activeCounters = counters.filter((counter) => counter.status !== 'OFFLINE').length
   const estimatedWait = Math.ceil((waiting.filter((entry) => entry.status === 'WAITING').length * service.average_service_time) / Math.max(activeCounters, 1))
