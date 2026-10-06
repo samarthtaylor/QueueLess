@@ -50,6 +50,23 @@ export default function Page() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   useEffect(() => { const onScroll = () => setScrolled(window.scrollY > 20); window.addEventListener('scroll', onScroll); fetch('/api/services?menu=1').then(response => response.json()).then(data => { setServices(data.services ?? []); setMenuServices(data.services ?? []) }).catch(() => undefined); return () => window.removeEventListener('scroll', onScroll) }, [])
   useEffect(() => { if (!servicesExpanded || menuServices.length) return; fetch('/api/services?menu=1').then(response => response.json()).then(data => setMenuServices(data.services ?? [])).catch(() => undefined) }, [servicesExpanded, menuServices.length])
+  useEffect(() => {
+    if (!menuOpen) return
+    const scrollY = window.scrollY
+    const body = document.body
+    const previous = { overflow: body.style.overflow, position: body.style.position, top: body.style.top, width: body.style.width }
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    return () => {
+      body.style.overflow = previous.overflow
+      body.style.position = previous.position
+      body.style.top = previous.top
+      body.style.width = previous.width
+      window.scrollTo(0, scrollY)
+    }
+  }, [menuOpen])
   const serviceMatches = services.filter(service => `${service.service_name} ${service.category} ${service.description}`.toLowerCase().includes(serviceQuery.toLowerCase().trim())).slice(0, 5)
   const closeMenu = () => { setMenuOpen(false); setServicesExpanded(false); setExpandedCategory(null) }
   const normalizeMenuCategory = (category: string) => ({ 'Identity & Citizen Documents': 'Identity & Certificates', Documents: 'Identity & Certificates', Certificates: 'Identity & Certificates', Identity: 'Identity & Certificates', Applications: 'Other Citizen Services' }[category] ?? category)
