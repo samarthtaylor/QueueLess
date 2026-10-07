@@ -42,7 +42,6 @@ export default function AdminLoginPage() {
             {error && <p className="admin-login-error" role="alert">{error}</p>}
             <button className="admin-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Signing in...' : <>Sign in <ArrowRight aria-hidden="true" /></>}</button>
           </form>
-          <p className="admin-recovery">Forgot password? Contact your office administrator for help recovering access.</p>
         </div>
         <div className="admin-security-note"><ShieldCheck aria-hidden="true" /><span><strong>Secure staff access</strong><small>Protected by QueueLess authentication</small></span></div>
       </section>
