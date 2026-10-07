@@ -74,6 +74,12 @@ const catalogue = [
 ]
 const upsertService = db.prepare(`INSERT INTO services (service_id, service_name, description, category, department, required_documents, keywords, average_service_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(service_id) DO UPDATE SET service_name=excluded.service_name, description=excluded.description, category=excluded.category, department=excluded.department, required_documents=excluded.required_documents, keywords=excluded.keywords, average_service_time=excluded.average_service_time, updated_at=CURRENT_TIMESTAMP`)
 for (const service of catalogue) upsertService.run(service[0], service[1], service[2], service[3], service[4], JSON.stringify(String(service[6]).split(', ')), service[7], service[5])
+db.exec(`UPDATE services SET category = CASE category WHEN 'Identity & Citizen Documents' THEN 'Identity & Certificates' WHEN 'Certificates & General Services' THEN 'Other Citizen Services' WHEN 'Documents' THEN 'Identity & Certificates' WHEN 'Certificates' THEN 'Identity & Certificates' WHEN 'Identity' THEN 'Identity & Certificates' WHEN 'Applications' THEN 'Other Citizen Services' ELSE category END`)
+const ensureCounter = db.prepare("INSERT OR IGNORE INTO counters (counter_number, service_id, status) VALUES (?, ?, 'AVAILABLE')")
+for (const service of db.prepare('SELECT service_id FROM services').all() as { service_id: string }[]) {
+  ensureCounter.run('01', service.service_id)
+  ensureCounter.run('02', service.service_id)
+}
 
 const serviceCount = db.prepare('SELECT COUNT(*) as count FROM services').get() as { count: number }
 if (serviceCount.count === 0) {
