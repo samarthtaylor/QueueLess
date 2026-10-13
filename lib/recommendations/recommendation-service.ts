@@ -17,7 +17,7 @@ export function generateRecommendation(serviceId: string) {
   if (snapshot.active_counters === 0) return { error: 'NO_COUNTERS' as const, service_name: service.service_name }
 
   const history = db.prepare(`SELECT wait_time, service_time, created_at FROM queue_history WHERE service_id = ? ORDER BY created_at DESC LIMIT 500`).all(serviceId) as Array<{ wait_time: number; service_time: number; created_at: string }>
-  const historicalWait = average(history.map((row) => row.wait_time).filter((value) => value > 0), snapshot.estimated_wait)
+  const historicalWait = average(history.map((row) => row.wait_time).filter((value) => value > 0), snapshot.estimated_wait ?? 0)
   const serviceTime = average(history.map((row) => row.service_time).filter((value) => value > 0), service.average_service_time)
   const currentWaiting = snapshot.people_waiting
   const dailyBaseline = Math.max(serviceTime, historicalWait, 1)
