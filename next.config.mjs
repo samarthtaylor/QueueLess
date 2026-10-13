@@ -6,6 +6,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ['better-sqlite3'],
+  outputFileTracingIncludes: {
+    '/*': ['./database/**/*'],
+  },
 }
 
 export default nextConfig
