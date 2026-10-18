@@ -11,5 +11,8 @@ __v0_jsx-dev-runtime.ts
 
 # Common ignores
 node_modules
-.next/
+.next
+# SQLite creates these transient lock/journal files at runtime.
+database/*.sqlite-shm
+database/*.sqlite-wal/
 .DS_Store

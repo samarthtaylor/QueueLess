@@ -8,7 +8,7 @@ const nextConfig = {
   },
   serverExternalPackages: ['better-sqlite3'],
   outputFileTracingIncludes: {
-    '/*': ['./database/**/*'],
+    '/*': ['./database/queueless.sqlite'],
   },
 }
 
