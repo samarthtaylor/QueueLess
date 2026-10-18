@@ -3,24 +3,24 @@
 import { useLayoutEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
+function resetScrollPosition() {
+  const scrollingElement = document.scrollingElement ?? document.documentElement
+  scrollingElement.scrollTop = 0
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+  window.scrollTo(0, 0)
+
+  for (const element of document.querySelectorAll<HTMLElement>('[data-scroll-container]')) {
+    element.scrollTop = 0
+  }
+}
+
 export function ScrollToTop() {
   const pathname = usePathname()
+
   useLayoutEffect(() => {
-    const previousRestoration = window.history.scrollRestoration
     window.history.scrollRestoration = 'manual'
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-    document.documentElement.scrollTop = 0
-    document.body.scrollTop = 0
-
-    for (const element of document.querySelectorAll<HTMLElement>('[data-scroll-container], main, .site-nav')) {
-      if (element.scrollHeight > element.clientHeight && getComputedStyle(element).overflowY !== 'visible') {
-        element.scrollTop = 0
-      }
-    }
-
-    return () => {
-      window.history.scrollRestoration = previousRestoration
-    }
+    resetScrollPosition()
   }, [pathname])
 
   return null
