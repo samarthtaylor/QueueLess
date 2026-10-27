@@ -3,16 +3,21 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const databaseDirectory = path.join(process.cwd(), 'database')
-const databasePath = process.env.QUEUELESS_DATABASE_PATH || path.join(databaseDirectory, 'queueless.sqlite')
+const bundledDatabasePath = path.join(databaseDirectory, 'queueless.sqlite')
+const configuredDatabasePath = process.env.QUEUELESS_DATABASE_PATH
+const runtimeDatabasePath = configuredDatabasePath || (process.env.NODE_ENV === 'production' ? '/tmp/queueless.sqlite' : bundledDatabasePath)
 
-fs.mkdirSync(path.dirname(databasePath), { recursive: true })
+fs.mkdirSync(path.dirname(runtimeDatabasePath), { recursive: true })
+if (!configuredDatabasePath && runtimeDatabasePath !== bundledDatabasePath && !fs.existsSync(runtimeDatabasePath)) {
+  fs.copyFileSync(bundledDatabasePath, runtimeDatabasePath)
+}
 
 const globalForDatabase = globalThis as unknown as { queuelessDatabase?: Database.Database }
-export const db = globalForDatabase.queuelessDatabase ?? new Database(databasePath)
+export const db = globalForDatabase.queuelessDatabase ?? new Database(runtimeDatabasePath)
 if (process.env.NODE_ENV !== 'production') globalForDatabase.queuelessDatabase = db
 
 db.pragma('foreign_keys = ON')
-// Use SQLite's rollback journal so transient WAL files are not produced during build/deployment tracing.
+// Keep the bundled seed database read-only; production writes go to the writable runtime copy.
 db.pragma('journal_mode = DELETE')
 
 db.exec(`
