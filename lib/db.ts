@@ -12,7 +12,8 @@ export const db = globalForDatabase.queuelessDatabase ?? new Database(databasePa
 if (process.env.NODE_ENV !== 'production') globalForDatabase.queuelessDatabase = db
 
 db.pragma('foreign_keys = ON')
-db.pragma('journal_mode = WAL')
+// Use SQLite's rollback journal so transient WAL files are not produced during build/deployment tracing.
+db.pragma('journal_mode = DELETE')
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'CITIZEN' CHECK (role IN ('CITIZEN','ADMIN','STAFF')), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
